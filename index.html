@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Item Picker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #eef2ff 0%, #f8fafc 45%, #f5f3ff 100%);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.75); opacity: 0; }
+            65% { transform: scale(1.07); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
+            50% { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0); }
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(-10px) rotate(0deg) scale(1); opacity: 1; }
+            100% { transform: translateY(110px) rotate(540deg) scale(0.6); opacity: 0; }
+        }
+        .animate-pop-in {
+            animation: popIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .winner-glow {
+            animation: pulseGlow 2s infinite;
+        }
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            pointer-events: none;
+            animation: confettiFall 1.1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-6">
+
+    <!-- Main Application Card -->
+    <main class="w-full max-w-2xl bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl shadow-indigo-950/10 border border-white overflow-hidden">
+        
+        <!-- Header -->
+        <div class="relative bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-5 sm:p-8 text-white text-center overflow-hidden">
+            <!-- Decorative Glow Orbs -->
+            <div class="absolute -top-12 -left-12 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute -bottom-16 -right-12 w-48 h-48 bg-fuchsia-400/20 rounded-full blur-2xl pointer-events-none"></div>
+
+            <!-- Top Action Bar on Mobile / Corner Anchored on Desktop -->
+            <div class="relative z-10 flex flex-wrap items-center justify-between gap-2 mb-4 sm:mb-0">
+                <!-- Live Room Status & Share Button -->
+                <button id="room-btn" onclick="openRoomModal()" class="sm:absolute sm:top-0 sm:left-0 inline-flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-white text-xs font-semibold backdrop-blur-md transition-all cursor-pointer shadow-sm">
+                    <span id="room-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="room-btn-text">Room: ...</span>
+                    <span class="inline-flex items-center gap-1 ml-1 pl-1.5 border-l border-white/25 text-emerald-200 font-bold">
+                        <i data-lucide="users" class="w-3 h-3"></i>
+                        <span id="room-user-count">1</span>
+                    </span>
+                </button>
+
+                <!-- Language Toggle Button -->
+                <button id="lang-toggle" onclick="toggleLanguage()" class="sm:absolute sm:top-0 sm:right-0 inline-flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-white text-xs font-semibold backdrop-blur-md transition-all cursor-pointer shadow-sm">
+                    <i data-lucide="languages" class="w-3.5 h-3.5"></i>
+                    <span id="lang-btn-text">中文</span>
+                </button>
+            </div>
+
+            <div class="relative z-10 inline-flex items-center justify-center p-3 sm:p-3.5 bg-white/15 border border-white/20 rounded-2xl mb-2.5 sm:mt-2 backdrop-blur-md shadow-lg">
+                <i data-lucide="dices" class="w-6 h-6 sm:w-7 sm:h-7 text-white"></i>
+            </div>
+            <h1 id="app-title" class="relative z-10 text-xl sm:text-3xl font-extrabold tracking-tight drop-shadow-xs">Random Item Picker</h1>
+            <p id="app-subtitle" class="relative z-10 text-indigo-100 text-xs sm:text-base mt-1">Select a quick preset or enter 1–20 custom items</p>
+        </div>
+
+        <!-- Mode Selector Tabs -->
+        <div class="flex border-b border-slate-100 bg-slate-50/70">
+            <button id="tab-preset" onclick="switchMode('preset')" class="flex-1 py-3.5 px-2 sm:px-4 text-xs sm:text-sm font-bold text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50 transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer">
+                <i data-lucide="sparkles" class="w-4 h-4 shrink-0"></i>
+                <span id="tab-preset-text" class="truncate">Preset (3–5 Items)</span>
+            </button>
+            <button id="tab-custom" onclick="switchMode('custom')" class="flex-1 py-3.5 px-2 sm:px-4 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 border-b-2 border-transparent transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer">
+                <i data-lucide="list-plus" class="w-4 h-4 shrink-0"></i>
+                <span id="tab-custom-text" class="truncate">Custom (1–20 Items)</span>
+            </button>
+        </div>
+
+        <!-- Content Body -->
+        <div class="p-4 sm:p-8 space-y-5 sm:space-y-6">
+
+            <!-- Result Display Stage -->
+            <div id="result-stage" class="relative bg-gradient-to-b from-slate-50 to-slate-100/70 border-2 border-dashed border-slate-200 rounded-2xl sm:rounded-3xl p-5 sm:p-8 min-h-[144px] sm:min-h-[168px] flex flex-col items-center justify-center transition-all duration-300 overflow-hidden">
+                <span id="result-label" class="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Ready to Pick</span>
+                <div id="result-display" class="text-2xl sm:text-4xl font-extrabold text-slate-400 text-center break-words max-w-full transition-all">
+                    Press Pick Random!
+                </div>
+                <div id="winner-badge" class="hidden mt-3 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm">
+                    <i data-lucide="party-popper" class="w-3.5 h-3.5"></i>
+                    <span id="winner-badge-text">Selected!</span>
+                </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
+                <button id="pick-btn" onclick="startRandomPick()" class="w-full sm:flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 sm:py-4 px-6 rounded-2xl shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2.5 text-base cursor-pointer">
+                    <i data-lucide="shuffle" class="w-5 h-5"></i>
+                    <span id="pick-btn-text">Pick Random Item</span>
+                </button>
+                
+                <label class="w-full sm:w-auto flex items-center justify-center gap-2.5 bg-slate-100/90 hover:bg-slate-200/70 px-4 py-3 sm:py-3.5 rounded-2xl cursor-pointer select-none transition-colors border border-slate-200/70">
+                    <input type="checkbox" id="remove-picked-toggle" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300 cursor-pointer">
+                    <span id="remove-picked-text" class="text-xs sm:text-sm font-semibold text-slate-700">Remove picked</span>
+                </label>
+            </div>
+
+            <!-- PANEL 1: Preset Mode (3-5 Items) -->
+            <div id="panel-preset" class="space-y-4 pt-4 border-t border-slate-100">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <label id="preset-label-text" for="preset-selector" class="text-sm font-bold text-slate-700">Choose a Preset List (3–5 Items):</label>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <select id="preset-selector" onchange="loadSelectedPreset()" class="flex-1 sm:flex-initial bg-slate-50 border border-slate-200 text-slate-800 text-base sm:text-sm font-semibold rounded-xl px-3.5 py-2.5 sm:py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer shadow-2xs"></select>
+                        <button type="button" id="admin-edit-btn" onclick="handleAdminButtonClick()" class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i>
+                            <span id="admin-edit-btn-text">Admin Edit</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preset Chips Preview -->
+                <div id="preset-items-list" class="flex flex-wrap gap-2 p-3.5 sm:p-4 bg-slate-50/90 rounded-2xl border border-slate-200/70 min-h-[68px]"></div>
+
+                <!-- Admin Preset Editor Panel (Hidden unless Admin Mode active) -->
+                <div id="admin-edit-panel" class="hidden p-4 sm:p-5 bg-indigo-50/60 border border-indigo-200 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-indigo-800 font-bold text-xs sm:text-sm">
+                            <i data-lucide="lock-open" class="w-4 h-4 shrink-0"></i>
+                            <span id="admin-edit-title">Admin Mode: Edit Preset (3–5 Items)</span>
+                        </div>
+                        <button type="button" onclick="lockAdminMode()" class="text-xs font-semibold text-slate-500 hover:text-rose-600 flex items-center gap-1 py-1 px-2 rounded-lg cursor-pointer shrink-0">
+                            <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                            <span id="admin-lock-text">Lock Admin</span>
+                        </button>
+                    </div>
+
+                    <!-- Preset Title Input -->
+                    <div class="space-y-1">
+                        <label id="admin-preset-name-label" for="admin-preset-name-input" class="text-xs font-bold text-indigo-900">Preset Title:</label>
+                        <input type="text" id="admin-preset-name-input" maxlength="40" class="w-full bg-white border border-indigo-200 text-slate-800 text-base sm:text-sm font-semibold rounded-xl px-3.5 py-2.5 sm:py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div id="admin-edit-inputs" class="space-y-2"></div>
+
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="admin-add-slot-btn" onclick="addAdminPresetSlot()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-white border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors disabled:opacity-40 cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span id="admin-add-slot-text">Add Item</span>
+                            </button>
+                            <button type="button" onclick="restoreDefaultPreset()" id="admin-restore-btn" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-semibold transition-colors cursor-pointer">
+                                Restore Default
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="cancelAdminEdit()" id="admin-cancel-btn" class="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition-colors cursor-pointer">
+                                Cancel
+                            </button>
+                            <button type="button" onclick="saveAdminPreset()" id="admin-save-btn" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer">
+                                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                <span>Save Changes</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 2: Custom Mode (1-20 Items) -->
+            <div id="panel-custom" class="hidden space-y-4 pt-4 border-t border-slate-100">
+                <div class="flex items-center justify-between">
+                    <label id="custom-label-text" for="custom-input" class="text-sm font-bold text-slate-700">Your Custom Items</label>
+                    <span id="custom-counter" class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">0 / 20 Items</span>
+                </div>
+
+                <!-- Input Bar (text-base prevents iOS auto-zoom) -->
+                <form onsubmit="addCustomItem(event)" class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="custom-input" 
+                        maxlength="60"
+                        placeholder="Type an item here (e.g., Pizza, Alice, Option A)..." 
+                        class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-800 text-base sm:text-sm rounded-xl px-3.5 sm:px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    >
+                    <button type="submit" id="add-btn" class="bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-40 text-white font-semibold px-4 sm:px-5 py-3 rounded-xl text-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span id="add-btn-text">Add</span>
+                    </button>
+                </form>
+
+                <!-- Quick Helper Tools -->
+                <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span id="custom-hint-text" class="text-slate-400">Max 20 items. Press Enter to add quickly.</span>
+                    <div class="flex items-center gap-3">
+                        <button type="button" onclick="fillNumbers1To20()" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 py-1 cursor-pointer">
+                            <i data-lucide="hash" class="w-3.5 h-3.5"></i> <span id="fill-btn-text">Fill 1–20 Numbers</span>
+                        </button>
+                        <button type="button" onclick="clearCustomItems()" class="text-rose-500 hover:text-rose-700 font-semibold flex items-center gap-1 py-1 cursor-pointer">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span id="clear-btn-text">Clear All</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Items Grid -->
+                <div id="custom-items-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- PANEL 3: Live Room Chat -->
+            <div class="pt-4 border-t border-slate-100 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-slate-700 font-bold text-sm">
+                        <i data-lucide="message-circle" class="w-4 h-4 text-indigo-600"></i>
+                        <span id="chat-title-text">Room Chat</span>
+                    </div>
+                    <!-- Clickable Nickname Badge -->
+                    <button type="button" id="chat-nickname-btn" onclick="openNicknameEditor()" class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200/80 transition-colors cursor-pointer" title="Click to rename">
+                        <span id="chat-nickname-badge">Guest</span>
+                        <i data-lucide="pencil" class="w-3 h-3 text-indigo-500"></i>
+                    </button>
+                </div>
+
+                <!-- Inline Nickname Rename Form (Hidden by default) -->
+                <form id="chat-nickname-form" onsubmit="saveChatNickname(event)" class="hidden flex items-center gap-2 bg-indigo-50/70 border border-indigo-200 rounded-xl p-2">
+                    <input
+                        type="text"
+                        id="chat-nickname-input"
+                        maxlength="20"
+                        placeholder="Enter your display name..."
+                        class="flex-1 min-w-0 bg-white border border-indigo-200 text-slate-800 text-base sm:text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                    <button type="submit" id="chat-nickname-save-btn" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0">
+                        Save
+                    </button>
+                    <button type="button" onclick="closeNicknameEditor()" id="chat-nickname-cancel-btn" class="px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-200/70 text-xs font-semibold transition-colors cursor-pointer shrink-0">
+                        Cancel
+                    </button>
+                </form>
+
+                <!-- Messages Feed -->
+                <div id="chat-messages" class="h-40 sm:h-44 overflow-y-auto bg-slate-50/90 border border-slate-200/70 rounded-2xl p-3 space-y-2 text-xs sm:text-sm">
+                    <div id="chat-empty-state" class="h-full flex items-center justify-center text-slate-400 text-xs text-center">
+                        No messages yet. Say hi to the room!
+                    </div>
+                </div>
+
+                <!-- Chat Input Form -->
+                <form onsubmit="sendChatMessage(event)" class="flex gap-2">
+                    <input
+                        type="text"
+                        id="chat-input"
+                        maxlength="140"
+                        placeholder="Type a message to the room..."
+                        class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-800 text-base sm:text-sm rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    >
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        <span id="chat-send-text">Send</span>
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Floating Toast Notification -->
+    <div id="toast-msg" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-md px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold shadow-xl flex items-center justify-center gap-2 transition-all"></div>
+
+    <!-- Admin Verification Modal -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-sm p-5 sm:p-6 space-y-4 animate-pop-in">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 shrink-0">
+                    <i data-lucide="shield" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 id="modal-title" class="text-base font-bold text-slate-800">Admin Verification</h3>
+                    <p id="modal-subtitle" class="text-xs text-slate-500">Enter Admin PIN to edit presets (Default: 1234)</p>
+                </div>
+            </div>
+
+            <form onsubmit="verifyAdminPin(event)" class="space-y-4">
+                <input type="password" inputmode="numeric" id="admin-pin-input" maxlength="10" placeholder="••••" class="w-full text-center tracking-widest text-lg font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeAdminModal()" id="modal-cancel-btn" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+                    <button type="submit" id="modal-unlock-btn" class="px-4 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm">Unlock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Collaborative Room Modal -->
+    <div id="room-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md p-5 sm:p-6 space-y-5 animate-pop-in">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 rounded-2xl bg-emerald-50 text-emerald-600 shrink-0">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 id="room-modal-title" class="text-base font-bold text-slate-800">Collaborative Live Room</h3>
+                        <p id="room-modal-subtitle" class="text-xs text-slate-500">Share this room code so others can sync live</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeRoomModal()" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Current Room Code & Copy -->
+            <div class="p-3.5 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <span id="current-room-label" class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Current Room Code</span>
+                    <div class="flex items-center gap-2.5 mt-0.5">
+                        <span id="current-room-code" class="text-xl font-black text-indigo-600 tracking-wider">----</span>
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="modal-online-count">1 online</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="copyRoomCode()" id="copy-room-btn" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-sm">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span id="copy-room-text">Copy Code</span>
+                    </button>
+                    <button type="button" onclick="createNewRoom()" id="new-room-btn" class="inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer" title="Create New Room">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Connection Status Indicator -->
+            <div id="sync-status-banner" class="px-3.5 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-800 flex items-center gap-2">
+                <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span id="sync-status-text">Live Sync Ready</span>
+            </div>
+
+            <!-- Join Another Room -->
+            <form onsubmit="joinRoomByCode(event)" class="space-y-2 pt-2 border-t border-slate-100">
+                <label id="join-room-label" class="text-xs font-bold text-slate-700 block">Join Another Room:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="join-room-input" maxlength="12" placeholder="Enter room code (e.g. AB12CD)" class="flex-1 min-w-0 uppercase bg-slate-50 border border-slate-200 text-slate-800 text-base sm:text-sm font-bold tracking-wider rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <button type="submit" id="join-room-btn" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-colors cursor-pointer shadow-sm shrink-0">
+                        Join
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Multi-Backend Real-Time Sync Engine (Firebase + GunDB Public Relay + Same-Device Broadcast) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let firebaseConfig = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+            }
+        } catch (e) {
+            firebaseConfig = null;
+        }
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let unsubscribeRoom = null;
+        let unsubscribePresence = null;
+        let unsubscribeChat = null;
+        let presenceHeartbeatInterval = null;
+        let firestoreFns = null;
+
+        // Cross-device P2P relay & local tab sync fallback (works out-of-the-box on GitHub Pages!)
+        let gunInstance = null;
+        let gunRoomNode = null;
+        let gunPresenceNode = null;
+        let gunChatNode = null;
+        let broadcastChan = null;
+        const peerHeartbeats = {};
+        const seenChatIds = new Set();
+        const clientSessionId = 'peer_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+
+        let onlineUserCount = 1;
+        let chatMessages = [];
+        let myGuestTag = `User-${Math.floor(100 + Math.random() * 900)}`;
+
+        // Generate or read initial Room ID
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomId = (urlParams.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!roomId) {
+            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+// ... existing code ... -->
+                toastRoomCopied: 'Room code copied to clipboard!',
+                toastRoomJoined: 'Connected to room',
+                toastRoomEmpty: 'Please enter a valid room code.',
+                syncCloudActive: 'Cloud Live Sync Active (Multi-Device)',
+                syncRelayActive: 'Public Relay Sync Active (Multi-Device)',
+                title: 'Random Item Picker',
+                subtitle: 'Select a quick preset or enter 1–20 custom items',
+// ... existing code ... -->
+                toastRoomCopied: '已複製房間代碼！',
+                toastRoomJoined: '已連線至房間',
+                toastRoomEmpty: '請輸入有效的房間代碼。',
+                syncCloudActive: '雲端即時同步已連線（支援跨裝置）',
+                syncRelayActive: '公共即時同步已連線（支援跨裝置）',
+                title: '隨機項目抽選器',
+                subtitle: '選擇快速預設清單，或自行輸入 1–20 個項目',
+// ... existing code ... -->
+        // Initialize UI immediately and connect real-time sync on load
+        window.onload = async function () {
+            updateRoomDisplay();
+            applyTranslations();
+            renderPresetItems();
+            renderCustomItems();
+            renderChatMessages();
+
+            // Always start BroadcastChannel for instant same-browser multi-tab sync
+            setupBroadcastChannel(roomId);
+
+            if (firebaseConfig) {
+                try {
+                    const [appMod, authMod, fsMod] = await Promise.all([
+                        import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
+                        import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js'),
+                        import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
+                    ]);
+
+                    const firebaseApp = appMod.initializeApp(firebaseConfig);
+                    auth = authMod.getAuth(firebaseApp);
+                    db = fsMod.getFirestore(firebaseApp);
+                    firestoreFns = {
+                        doc: fsMod.doc,
+                        addDoc: fsMod.addDoc,
+                        setDoc: fsMod.setDoc,
+                        deleteDoc: fsMod.deleteDoc,
+                        collection: fsMod.collection,
+                        onSnapshot: fsMod.onSnapshot
+                    };
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await authMod.signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await authMod.signInAnonymously(auth);
+                    }
+                    currentUser = auth.currentUser;
+                    updateSyncStatusText('cloud');
+                    subscribeToRoom(roomId);
+                    startRoomPresence(roomId);
+                    subscribeToChat(roomId);
+                    return;
+                } catch (err) {
+                    console.warn('Firebase unavailable, falling back to public relay:', err);
+                }
+            }
+
+            // Fallback for GitHub Pages / standalone hosting: load GunDB public relay for cross-device sync
+            await initPublicRelaySync();
+        };
+
+        function updateSyncStatusText(mode) {
+            const t = i18n[currentLang];
+            const statusEl = document.getElementById('sync-status-text');
+            if (!statusEl) return;
+            statusEl.textContent = mode === 'cloud' ? t.syncCloudActive : t.syncRelayActive;
+        }
+
+        function setupBroadcastChannel(targetRoomId) {
+            if (broadcastChan) {
+                try { broadcastChan.close(); } catch (e) {}
+            }
+            if (typeof BroadcastChannel === 'undefined') return;
+            broadcastChan = new BroadcastChannel(`picker_room_${targetRoomId}`);
+            broadcastChan.onmessage = (ev) => {
+                const msg = ev.data;
+                if (!msg || msg.sender === clientSessionId) return;
+                if (msg.type === 'state') {
+                    applyRemoteRoomData(msg.payload);
+                } else if (msg.type === 'chat') {
+                    receiveIncomingChat(msg.payload);
+                } else if (msg.type === 'ping') {
+                    peerHeartbeats[msg.sender] = Date.now();
+                    recalculateRelayOnlineCount();
+                    broadcastChan.postMessage({ type: 'pong', sender: clientSessionId });
+                } else if (msg.type === 'pong') {
+                    peerHeartbeats[msg.sender] = Date.now();
+                    recalculateRelayOnlineCount();
+                } else if (msg.type === 'leave') {
+                    delete peerHeartbeats[msg.sender];
+                    recalculateRelayOnlineCount();
+                }
+            };
+            broadcastChan.postMessage({ type: 'ping', sender: clientSessionId });
+        }
+
+        function loadExternalScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.async = true;
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function initPublicRelaySync() {
+            try {
+                if (!window.Gun) {
+                    await loadExternalScript('https://cdn.jsdelivr.net/npm/gun/gun.js');
+                }
+                if (window.Gun) {
+                    gunInstance = window.Gun({
+                        peers: [
+                            'https://gun-manhattan.herokuapp.com/gun',
+                            'https://peer.wallie.io/gun',
+                            'https://relay.peer.ooo/gun'
+                        ],
+                        localStorage: false
+                    });
+                    updateSyncStatusText('relay');
+                    connectPublicRelayRoom(roomId);
+                }
+            } catch (err) {
+                console.warn('Public relay script failed to load:', err);
+            }
+        }
+
+        function connectPublicRelayRoom(targetRoomId) {
+            if (!gunInstance) return;
+            if (presenceHeartbeatInterval) clearInterval(presenceHeartbeatInterval);
+
+            // Clear old peer map
+            Object.keys(peerHeartbeats).forEach(k => delete peerHeartbeats[k]);
+            peerHeartbeats[clientSessionId] = Date.now();
+            recalculateRelayOnlineCount();
+
+            const ns = `istnait777_random_picker_v2_${targetRoomId}`;
+            gunRoomNode = gunInstance.get(`${ns}_state`);
+            gunPresenceNode = gunInstance.get(`${ns}_presence`);
+            gunChatNode = gunInstance.get(`${ns}_chat`);
+
+            // Listen for room state changes
+            gunRoomNode.on((data) => {
+                if (!data || !data.json || data.sender === clientSessionId) return;
+                try {
+                    const parsed = JSON.parse(data.json);
+                    applyRemoteRoomData(parsed);
+                } catch (e) {}
+            });
+
+            // Listen for live presence heartbeats
+            gunPresenceNode.map().on((val, peerId) => {
+                if (!peerId || !val) return;
+                if (val.left) {
+                    delete peerHeartbeats[peerId];
+                } else if (val.ts) {
+                    peerHeartbeats[peerId] = Number(val.ts);
+                }
+                recalculateRelayOnlineCount();
+            });
+
+            // Listen for room chat messages
+            gunChatNode.map().on((val, msgKey) => {
+                if (!val || !val.text || !msgKey) return;
+                receiveIncomingChat({
+                    id: msgKey,
+                    senderUid: val.senderUid,
+                    senderName: val.senderName,
+                    text: val.text,
+                    createdAt: Number(val.createdAt) || Date.now()
+                });
+            });
+
+            // Broadcast presence heartbeat every 5 seconds
+            const sendRelayHeartbeat = () => {
+                const now = Date.now();
+                peerHeartbeats[clientSessionId] = now;
+                gunPresenceNode.get(clientSessionId).put({ ts: now, left: false });
+                if (broadcastChan) {
+                    broadcastChan.postMessage({ type: 'ping', sender: clientSessionId });
+                }
+                recalculateRelayOnlineCount();
+            };
+
+            sendRelayHeartbeat();
+            presenceHeartbeatInterval = setInterval(sendRelayHeartbeat, 5000);
+
+            window.addEventListener('beforeunload', () => {
+                try {
+                    gunPresenceNode.get(clientSessionId).put({ ts: 0, left: true });
+                    if (broadcastChan) broadcastChan.postMessage({ type: 'leave', sender: clientSessionId });
+                } catch (e) {}
+            });
+        }
+
+        function recalculateRelayOnlineCount() {
+            const now = Date.now();
+            peerHeartbeats[clientSessionId] = now;
+            let count = 0;
+            Object.keys(peerHeartbeats).forEach((id) => {
+                if (now - peerHeartbeats[id] < 18000) {
+                    count++;
+                } else {
+                    delete peerHeartbeats[id];
+                }
+            });
+            onlineUserCount = Math.max(1, count);
+            updateRoomDisplay();
+        }
+
+        function receiveIncomingChat(msgObj) {
+            if (!msgObj || !msgObj.text) return;
+            const dedupeKey = msgObj.id || `${msgObj.senderUid}_${msgObj.createdAt}_${msgObj.text}`;
+            if (seenChatIds.has(dedupeKey)) return;
+            seenChatIds.add(dedupeKey);
+
+            chatMessages.push(msgObj);
+            chatMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            if (chatMessages.length > 50) {
+                chatMessages = chatMessages.slice(-50);
+            }
+            renderChatMessages();
+        }
+
+        function applyRemoteRoomData(data) {
+            if (!data) return;
+            isSyncingFromRemote = true;
+            try {
+                if (data.presetsByLang) {
+                    presetsByLang = data.presetsByLang;
+                }
+                if (data.selectedPresetKey) {
+                    selectedPresetKey = data.selectedPresetKey;
+                    const selector = document.getElementById('preset-selector');
+                    if (selector) selector.value = selectedPresetKey;
+                }
+                if (Array.isArray(data.activePresetItems)) {
+                    activePresetItems = data.activePresetItems;
+                }
+                if (Array.isArray(data.customItems)) {
+                    customItems = data.customItems;
+                }
+                if (data.currentMode && data.currentMode !== currentMode) {
+                    applyModeUI(data.currentMode);
+                }
+
+                populatePresetDropdown();
+                if (!isEditingPreset) {
+                    renderPresetItems();
+                }
+                renderCustomItems();
+
+                if (data.lastPickTimestamp && data.lastPickTimestamp > lastPickTimestamp && data.currentWinnerText) {
+                    lastPickTimestamp = data.lastPickTimestamp;
+                    showRemoteWinner(data.currentWinnerText);
+                }
+            } finally {
+                isSyncingFromRemote = false;
+            }
+        }
+
+        function getRoomDocRef(targetRoomId) {
+// ... existing code ... -->
+        async function sendChatMessage(event) {
+            event.preventDefault();
+            const input = document.getElementById('chat-input');
+            if (!input) return;
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const msgObj = {
+                id: msgId,
+                senderUid: currentUser ? currentUser.uid : clientSessionId,
+                senderName: myGuestTag,
+                text,
+                createdAt: Date.now()
+            };
+
+            if (db && currentUser && firestoreFns) {
+                try {
+                    await firestoreFns.addDoc(getChatCollectionRef(roomId), msgObj);
+                } catch (err) {
+                    console.error('Failed to send chat message:', err);
+                }
+            } else {
+                receiveIncomingChat(msgObj);
+                if (gunChatNode) {
+                    gunChatNode.get(msgId).put({
+                        senderUid: msgObj.senderUid,
+                        senderName: msgObj.senderName,
+                        text: msgObj.text,
+                        createdAt: msgObj.createdAt
+                    });
+                }
+                if (broadcastChan) {
+                    broadcastChan.postMessage({ type: 'chat', sender: clientSessionId, payload: msgObj });
+                }
+            }
+        }
+
+        function renderChatMessages() {
+            const t = i18n[currentLang];
+            const box = document.getElementById('chat-messages');
+            const badge = document.getElementById('chat-nickname-badge');
+            if (badge) badge.textContent = `${t.chatYou}: ${myGuestTag}`;
+            if (!box) return;
+
+            if (chatMessages.length === 0) {
+                box.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 text-xs text-center">${t.chatEmpty}</div>`;
+                return;
+            }
+
+            const myUid = currentUser ? currentUser.uid : clientSessionId;
+            box.innerHTML = chatMessages.map(m => {
+                const isMe = m.senderUid === myUid;
+// ... existing code ... -->
+            const roomRef = getRoomDocRef(targetRoomId);
+            unsubscribeRoom = firestoreFns.onSnapshot(roomRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    syncStateToRoom();
+                    return;
+                }
+                applyRemoteRoomData(snapshot.data());
+            }, (err) => {
+                console.error('Room listener error:', err);
+            });
+        }
+
+        async function syncStateToRoom(extraFields = {}) {
+            if (isSyncingFromRemote) return;
+            const payload = {
+                presetsByLang,
+                selectedPresetKey,
+                activePresetItems,
+                customItems,
+                currentMode,
+                updatedAt: Date.now(),
+                ...extraFields
+            };
+
+            if (db && currentUser && firestoreFns) {
+                try {
+                    const roomRef = getRoomDocRef(roomId);
+                    await firestoreFns.setDoc(roomRef, payload, { merge: true });
+                } catch (err) {
+                    console.error('Failed to sync room state:', err);
+                }
+            } else {
+                if (gunRoomNode) {
+                    gunRoomNode.put({
+                        sender: clientSessionId,
+                        updatedAt: payload.updatedAt,
+                        json: JSON.stringify(payload)
+                    });
+                }
+                if (broadcastChan) {
+                    broadcastChan.postMessage({ type: 'state', sender: clientSessionId, payload });
+                }
+            }
+        }
+
+        function showRemoteWinner(winner) {
+// ... existing code ... -->
+        function createNewRoom() {
+            const t = i18n[currentLang];
+            if (db && currentUser && firestoreFns) {
+                const oldRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', `picker_presence_${roomId}`, currentUser.uid);
+                firestoreFns.deleteDoc(oldRef).catch(() => {});
+            } else if (gunPresenceNode) {
+                gunPresenceNode.get(clientSessionId).put({ ts: 0, left: true });
+            }
+            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            lastPickTimestamp = 0;
+            onlineUserCount = 1;
+            chatMessages = [];
+            seenChatIds.clear();
+            renderChatMessages();
+            updateRoomDisplay();
+            setupBroadcastChannel(roomId);
+            if (db && currentUser) {
+                subscribeToRoom(roomId);
+                startRoomPresence(roomId);
+                subscribeToChat(roomId);
+            } else {
+                connectPublicRelayRoom(roomId);
+            }
+            syncStateToRoom();
+            showToast(`${t.toastRoomJoined} (${roomId})`, 'success');
+        }
+
+        function joinRoomByCode(event) {
+            event.preventDefault();
+            const t = i18n[currentLang];
+            const input = document.getElementById('join-room-input');
+            const code = input.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (!code) {
+                showToast(t.toastRoomEmpty, 'error');
+                return;
+            }
+            if (db && currentUser && firestoreFns) {
+                const oldRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', `picker_presence_${roomId}`, currentUser.uid);
+                firestoreFns.deleteDoc(oldRef).catch(() => {});
+            } else if (gunPresenceNode) {
+                gunPresenceNode.get(clientSessionId).put({ ts: 0, left: true });
+            }
+            roomId = code;
+            lastPickTimestamp = 0;
+            onlineUserCount = 1;
+            chatMessages = [];
+            seenChatIds.clear();
+            renderChatMessages();
+            input.value = '';
+            updateRoomDisplay();
+            closeRoomModal();
+            setupBroadcastChannel(roomId);
+            if (db && currentUser) {
+                subscribeToRoom(roomId);
+                startRoomPresence(roomId);
+                subscribeToChat(roomId);
+            } else {
+                connectPublicRelayRoom(roomId);
+            }
+            showToast(`${t.toastRoomJoined} (${roomId})`, 'success');
+        }
+
+        // --- Language Translation Logic ---
+// ... existing code ... -->
+            updateRoomDisplay();
+            updateSyncStatusText(db && currentUser ? 'cloud' : 'relay');
+            setText('room-modal-title', t.roomModalTitle);
+            setText('room-modal-subtitle', t.roomModalSubtitle);
+// ... existing code ... -->
